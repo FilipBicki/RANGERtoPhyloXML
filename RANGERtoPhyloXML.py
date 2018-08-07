@@ -16,6 +16,13 @@ def findRec(lines) :
             end = lineNum
             return (start,end)
 
+def transferXML(line) :
+    #mapping =  line.split(", Mapping --> ")[1]
+    mapping = line.split(", Recipient --> ")[0]
+    recip = line.split(", Recipient --> ")[1]
+    print(mapping)
+    print(recip)
+
 #This takes the locations of each event and creates the appropriate XML
 def buildXML(recLines) :
     root = ET.Element("recGeneTree")
@@ -26,13 +33,14 @@ def buildXML(recLines) :
         #if any(x in line for x in events) :
         if events[0] in line :
             #Transfer XML
+            transferXML(line)
             print(events[0])
         elif events[1] in line :
-                #Duplication XML
-                print(events[1])
+            #Duplication XML
+            print(events[1])
         elif events[2] in line :
-                #Speciation XML
-                print(events[2])
+            #Speciation XML
+            print(events[2])
         else :
             print("Leaf")
     #hardcoded example
