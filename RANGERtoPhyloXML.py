@@ -1,4 +1,4 @@
-import sys, xml.etree.cElementTree as ET
+import re, sys, xml.etree.cElementTree as ET
 from collections import defaultdict
 
 inputFile = sys.argv[1]
@@ -17,11 +17,33 @@ def findRec(lines) :
             return (start,end)
 
 def transferXML(line) :
-    #mapping =  line.split(", Mapping --> ")[1]
-    mapping = line.split(", Recipient --> ")[0]
-    recip = line.split(", Recipient --> ")[1]
-    print(mapping)
+    subNode = line[0:line.find(' =')]
+    mapper = line[line.find('Mapping') + 12:line.find(', Recipient')]
+    recip = line[line.find(', Recipient') + 16:len(line)]
+    lca = line[line.find('[')+1:line.find(']:')].split(', ')
+    print(mapper)
     print(recip)
+    print(subNode)
+    print(lca[0])
+
+def duplicationXML(line) :
+    subNode = line[0:line.find(' =')]
+    mapper = line[line.find('Mapping') + 12:len(line)]
+    lca = line[line.find('[')+1:line.find(']:')].split(', ')
+    print(mapper)
+    print(subNode)
+
+
+def speciationXML(line) :
+    subNode = line[0:line.find(' =')]
+    mapper = line[line.find('Mapping') + 12:len(line)]
+    lca = line[line.find('[')+1:line.find(']:')].split(', ')
+    print(mapper)
+    print(subNode)
+
+def leafXML(line) :
+    subNode = line[0:line.find(': ')]
+    print(subNode)
 
 #This takes the locations of each event and creates the appropriate XML
 def buildXML(recLines) :
@@ -34,15 +56,17 @@ def buildXML(recLines) :
         if events[0] in line :
             #Transfer XML
             transferXML(line)
-            print(events[0])
+            #print(events[0])
         elif events[1] in line :
             #Duplication XML
-            print(events[1])
+            duplicationXML(line)
+            #print(events[1])
         elif events[2] in line :
             #Speciation XML
-            print(events[2])
+            speciationXML(line)
+            #print(events[2])
         else :
-            print("Leaf")
+            leafXML(line)
     #hardcoded example
     clade = ET.SubElement(rooted, "clade")
     name = ET.SubElement(clade, "name").text = "m3"
