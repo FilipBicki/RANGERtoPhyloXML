@@ -1,9 +1,9 @@
 import sys, xml.etree.cElementTree as ET
 import argparse
 from collections import defaultdict
+from Bio import Phylo
+import os
 
-def is_valid_file(parser,arg):
-    return open(arg,'r')
 
 #Finds where Reconcliation starts and ends
 #This is the section underneath the "Reconcilation:" and
@@ -17,6 +17,16 @@ def findRec(lines) :
         if (not current.strip() and (start != 0)) :
             end = lineNum
             return (start,end)
+
+def findSpTree(lines) :
+    for lineNum, current in enumerate(lines) :
+        if(current.find("Species Tree:") != -1) :
+            return lines[lineNum+1]
+
+def findGeneTree(lines) :
+    for lineNum, current in enumerate(lines) :
+        if(current.find("Gene Tree:") != -1) :
+            return lines[lineNum+1]
 
 #All XML generators found here
 #Extracts data from input lines and generates the appropriate XML
@@ -61,6 +71,34 @@ def leafXML(line, prev) :
     next = prev
     return(next)
 
+def buildTree(tree, qualifier) :
+    with open("temp","w+") as temper :
+        temper.writelines(tree)
+    Phylo.convert('temp', 'newick', 'temp2', 'phyloxml')
+    
+    specFile = open("temp2", "r")
+    lines = specFile.readlines()
+    lines.pop(0) #remove first line
+    lines.pop() #remove last line
+    specFile.close()
+    os.remove("temp")
+    os.remove("temp2")
+
+    
+    for line in lines:
+        line = "\t" + line
+    if(qualifier == "s") :
+        lines.insert(0,"<recPhylo>\n\t<spTree>\n")
+        lines.append("\t</spTree>\n")
+    elif(qualifier == "g") :
+        lines.insert(0,"\t<recGeneTree>\n")
+        lines.append("\t</recGeneTree>\n</recPhylo>\n")
+    
+    return lines
+
+
+
+
 #This takes the locations of each event and creates the appropriate XML
 def buildXML(recLines) :
     root = ET.Element("recGeneTree")
@@ -68,19 +106,15 @@ def buildXML(recLines) :
     events = ("Transfer", "Duplication", "Speciation")
     prev = root
     for line in recLines :
-        #if any(x in line for x in events) :
         if events[0] in line :
             #Transfer XML
             next = transferXML(line,prev)
-            #print(events[0])
         elif events[1] in line :
             #Duplication XML
             next = duplicationXML(line,prev)
-            #print(events[1])
         elif events[2] in line :
             #Speciation XML
             next = speciationXML(line,prev)
-            #print(events[2])
         else :
             next = leafXML(line,prev)
         prev = next
@@ -104,4 +138,13 @@ with open(args.input,'r') as file :
     lines = file.readlines()
     s, e = findRec(lines)[0], findRec(lines)[1]
     recLines = lines[s:e]
-    buildXML(recLines)
+    spTreeNewick = findSpTree(lines)
+    geneTreeNewick = findGeneTree(lines)
+    spTree = buildTree(spTreeNewick, "s")
+    geneTree = buildTree(geneTreeNewick, "g")
+
+    with open("out", "w+") as outFile:
+        outFile.writelines(spTree)
+        outFile.writelines(geneTree)
+
+    #buildXML(recLines)
