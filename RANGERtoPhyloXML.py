@@ -44,7 +44,7 @@ def transferXML(line,genetree) :
             leadingTabs = len(line) - len(line.lstrip())
             tabs = '\t'*(int(leadingTabs/2)+1)
             newLine = tabs + '<eventsRec>\n' + tabs + '\t<branchingOut speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></branchingOut>\n' + tabs + '</eventsRec>\n'
-            print(leadingTabs)
+            #print(leadingTabs)
             genetree.insert(num+1, newLine)
         
     return genetree
@@ -61,7 +61,7 @@ def duplicationXML(line,genetree) :
             leadingTabs = len(line) - len(line.lstrip())
             tabs = '\t'*(int(leadingTabs/2)+1)
             newLine = tabs + '<eventsRec>\n' + tabs + '\t<duplication speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></duplication>\n' + tabs + '</eventsRec>\n'
-            print(leadingTabs)
+            #print(leadingTabs)
             genetree.insert(num+1, newLine)
         
     return genetree
@@ -79,7 +79,7 @@ def speciationXML(line, genetree) :
             leadingTabs = len(line) - len(line.lstrip())
             tabs = '\t'*(int(leadingTabs/2)+1)
             newLine = tabs + '<eventsRec>\n' + tabs + '\t<speciation speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></speciation>\n' + tabs + '</eventsRec>\n'
-            print(leadingTabs)
+            #print(leadingTabs)
             genetree.insert(num+1, newLine)
         
     return genetree
@@ -92,7 +92,7 @@ def leafXML(line,genetree) :
             leadingTabs = len(line) - len(line.lstrip())
             tabs = '\t'*(int(leadingTabs/2)+1)
             newLine = tabs + '<eventsRec>\n' + tabs + '\t<leaf speciesLocation=' + '\"' + leafName.rstrip() + '\"' + '></leaf>\n' + tabs + '</eventsRec>\n'
-            print(leadingTabs)
+            #print(leadingTabs)
             genetree.insert(num+1, newLine)
         
     return genetree
@@ -146,9 +146,9 @@ def buildXML(recLines,geneTree) :
 #Argument parser, checks input from command line, arguments are optional
 parser = argparse.ArgumentParser(description='Commands')
 parser.add_argument('-i', '--input', help="Input file path", default = sys.argv[1])
-parser.add_argument('-o', '--output', help="Output file name", default = 'Output')
+parser.add_argument('-o', '--output', help="Output file name", default = 'output.xml')
 args = parser.parse_args()
-outputFile = args.outputFile
+#outputFile = args.outputFile
 
 #Hard coded input file for when biopython doesn't want to work
 #inputFile = r'C:\Win\CorePrograms\test'
