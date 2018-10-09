@@ -1,6 +1,6 @@
 # RANGERtoPhyloXML
 
-This software is to be used after running RANGER-DTL <link>. It converts the output into the recPhyloXML format <link2>.
+This software is to be used after running RANGER-DTL <http://compbio.mit.edu/ranger-dtl/>. It converts the output into the recPhyloXML format <http://phylariane.univ-lyon1.fr/recphyloxml/>.
 
 USAGE:
 Run the script in terminal by using command py RANGERtorecPhyloXML.py 'RANGER-DTL output'. This is the default command behavior and it expects 'RANGER-DTL output' to be in the same directory as the script. The file name should be written without quotes and the output is placed in the same directory as 'output.xml'.
