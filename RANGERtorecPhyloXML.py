@@ -1,3 +1,20 @@
+#########################################
+##  Author:         Filip Bicki
+##  Created:        20-Jun-2018
+##  Last modified:  10-Oct-2018
+##
+##  What is does:
+##  Looks through an output file of RANGER-DTL and turns
+##  it into the equivalent recPhyloXML format.
+##
+##
+##  requires : biopython (https://biopython.org/)
+##
+##
+##  developped for python3.7
+##
+#########################################
+
 import sys
 import argparse
 from collections import defaultdict
@@ -28,6 +45,12 @@ def findGeneTree(lines) :
     for lineNum, current in enumerate(lines) :
         if(current.find("Gene Tree:") != -1) :
             return lines[lineNum+1]
+
+def findRooted(lines) :
+    for current in lines :
+        if(current.find("(rooted)") != -1) :
+            return True
+    return False
 
 #All XML generators found here
 #Extracts data from input lines and generates the appropriate XML
@@ -98,7 +121,7 @@ def leafXML(line,genetree) :
     return genetree
 
 #Creates XML tree using biopython based on inputted newick tree
-def buildTree(tree, qualifier) :
+def buildTree(tree, qualifier, rooted) :
     with open("temp","w+") as temper :
         temper.writelines(tree)
     Phylo.convert('temp', 'newick', 'temp2', 'phyloxml')
@@ -108,10 +131,13 @@ def buildTree(tree, qualifier) :
     lines.pop(0) #remove first line
     lines.pop() #remove last line
     specFile.close()
-    os.remove("temp")
-    os.remove("temp2")
+    
 
     #Inserting the recPhylo information to the gene/species tree
+    if rooted :     
+        lines.pop(0)
+        lines.insert(0,'\t<phylogeny rooted="true">\n')
+
     for line in lines:
         line = "\t" + line
     if(qualifier == "s") :
@@ -120,7 +146,8 @@ def buildTree(tree, qualifier) :
     elif(qualifier == "g") :
         lines.insert(0,"\t<recGeneTree>\n")
         lines.append("\t</recGeneTree>\n</recPhylo>\n")
-    
+    os.remove("temp")
+    os.remove("temp2")
     return lines
 
 #This takes the locations of each event and creates the appropriate XML
@@ -160,10 +187,9 @@ with open(args.input,'r') as file :
     lines = file.readlines()
     s, e = findRec(lines)[0], findRec(lines)[1]
     recLines = lines[s:e]
-    spTreeNewick = findSpTree(lines)
-    geneTreeNewick = findGeneTree(lines)
-    spTree = buildTree(spTreeNewick, "s")
-    geneTree = buildTree(geneTreeNewick, "g")
+    rooted = findRooted(lines)
+    spTree = buildTree(findSpTree(lines), "s", rooted)
+    geneTree = buildTree(findGeneTree(lines), "g", rooted)
     buildXML(recLines,geneTree)
 
 
