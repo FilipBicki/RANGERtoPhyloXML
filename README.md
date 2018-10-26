@@ -1,6 +1,6 @@
 # RANGERtorecPhyloXML
 
-This software is to be used after running RANGER-DTL <http://compbio.mit.edu/ranger-dtl/>. It converts the output into the recPhyloXML format <http://phylariane.univ-lyon1.fr/recphyloxml/>.
+This software is to be used after running RANGER-DTL <http://compbio.mit.edu/ranger-dtl/>. It converts the output into the recPhyloXML format <https://www.ncbi.nlm.nih.gov/pubmed/29762653>.
 
 USAGE:
 
