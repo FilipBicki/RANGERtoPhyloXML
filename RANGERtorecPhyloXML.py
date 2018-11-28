@@ -1,12 +1,11 @@
 #########################################
 ##  Author:         Filip Bicki
 ##  Created:        20-Jun-2018
-##  Last modified:  10-Oct-2018
+##  Last modified:  13-Nov-2018
 ##
 ##  What is does:
-##  Looks through an output file of RANGER-DTL and turns
-##  it into the equivalent recPhyloXML format.
-##
+##  Takes a RANGER-DTL file output and converts it
+##  into the recPhyloXML format.
 ##
 ##  requires : biopython (https://biopython.org/)
 ##
@@ -20,7 +19,7 @@ import argparse
 from collections import defaultdict
 from Bio import Phylo
 import os
-
+import newick
 
 #Finds where Reconcliation starts and ends
 #This is the section underneath the "Reconcilation:" and
@@ -46,15 +45,25 @@ def findGeneTree(lines) :
         if(current.find("Gene Tree:") != -1) :
             return lines[lineNum+1]
 
+#Checks to see if the tree was rooted (trivial?)
 def findRooted(lines) :
     for current in lines :
         if(current.find("(rooted)") != -1) :
             return True
     return False
 
+#Checks if a gene on the gene tree has had an event already added
+def eventsRec(name,genetree) :
+    for num, line in enumerate(genetree) :
+        if(line.find(name) != -1) :
+            if(genetree[num+1].strip() != "</clade>" and genetree[num +1].strip() != "<clade>") :
+                return True
+    return False
+    
+
 #All XML generators found here
 #Extracts data from input lines and generates the appropriate XML
-def transferXML(line,genetree) :
+def transferXML(line,genetree,reclines) :
     
     #Data Extraction
     subNode = line[0:line.find(' =')]
@@ -66,9 +75,56 @@ def transferXML(line,genetree) :
         if line.find(subString) != -1:
             leadingTabs = len(line) - len(line.lstrip())
             tabs = '\t'*(int(leadingTabs/2)+1)
-            newLine = tabs + '<eventsRec>\n' + tabs + '\t<branchingOut speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></branchingOut>\n' + tabs + '</eventsRec>\n'
-            #print(leadingTabs)
-            genetree.insert(num+1, newLine)
+            #If the gene already has an <eventsRec> tag, don't add another one
+            if eventsRec(subNode,genetree) :
+                newLine = tabs + '\t<branchingOut speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></branchingOut>\n'
+                genetree.insert(num+3, newLine)
+            else :
+                genetree.insert(num+1, tabs + '<eventsRec>\n')
+                genetree.insert(num+2, tabs + '\t<branchingOut speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></branchingOut>\n')
+                genetree.insert(num+3, tabs + '</eventsRec>\n')
+    #Transfer events require a second part, the transferback, done here
+    
+    #find children of current gene node
+    #find if genes are
+    #leaves -> string matching
+    #direct mapping -> pick that one
+    #no mapping -> look for all children
+
+    for line in reclines:
+        print(lca[1])
+        print(recip)
+        if (lca[0] + "= " or lca[1] + "= " in line) and "Mapping --> " + recip in line:
+            genetree = transferBackXML(line,genetree)
+        elif lca[0].find(recip) != -1 :
+            genetree = transferBackXML(line,genetree)
+        elif lca[1].find(recip) != -1 :
+            genetree = transferBackXML(line,genetree)
+
+        #find other ways to get recipient species
+    return genetree
+
+def transferBackXML(line,genetree) :
+
+    subNode = line[0:line.find(' =')]
+    if line.find("Transfer") :
+        mapper = line[line.find('Mapping') + 12:line.find(', Recipient')]
+    else :
+        mapper = line[line.find('Mapping') + 12:len(line)]
+    lca = line[line.find('[')+1:line.find(']:')].split(', ')
+    subString = "<name>" + subNode + "</name>"
+    for num, line in enumerate(genetree):
+        if line.find(subString) != -1:
+            leadingTabs = len(line) - len(line.lstrip())
+            tabs = '\t'*(int(leadingTabs/2)+1)
+            #If the gene already has an <eventsRec> tag, don't add another one
+            if eventsRec(subNode,genetree) :
+                newLine = tabs + '\t<transferBack destinationSpecies=' + '\"' + mapper.rstrip() + '\"' + '></transferBack>\n'
+                genetree.insert(num+2, newLine)
+            else :
+                genetree.insert(num+1, tabs + '<eventsRec>\n')
+                genetree.insert(num+2, tabs + '\t<transferBack destinationSpecies=' + '\"' + mapper.rstrip() + '\"' + '></transferBack>\n')
+                genetree.insert(num+3, tabs + '</eventsRec>\n')
         
     return genetree
 
@@ -83,9 +139,14 @@ def duplicationXML(line,genetree) :
         if line.find(subString) != -1:
             leadingTabs = len(line) - len(line.lstrip())
             tabs = '\t'*(int(leadingTabs/2)+1)
-            newLine = tabs + '<eventsRec>\n' + tabs + '\t<duplication speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></duplication>\n' + tabs + '</eventsRec>\n'
-            #print(leadingTabs)
-            genetree.insert(num+1, newLine)
+            #If the gene already has an <eventsRec> tag, don't add another one
+            if eventsRec(subNode,genetree) :
+                newLine = tabs + '\t<duplication speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></duplication>\n'
+                genetree.insert(num+3, newLine)
+            else :
+                genetree.insert(num+1, tabs + '<eventsRec>\n')
+                genetree.insert(num+2, tabs + '\t<duplication speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></duplication>\n')
+                genetree.insert(num+3, tabs + '</eventsRec>\n')
         
     return genetree
 
@@ -95,15 +156,19 @@ def speciationXML(line, genetree) :
     subNode = line[0:line.find(' =')]
     mapper = line[line.find('Mapping') + 12:len(line)]
     lca = line[line.find('[')+1:line.find(']:')].split(', ')
-    #insert into the genetree
     subString = "<name>" + subNode + "</name>"
     for num, line in enumerate(genetree):
         if line.find(subString) != -1:
             leadingTabs = len(line) - len(line.lstrip())
             tabs = '\t'*(int(leadingTabs/2)+1)
-            newLine = tabs + '<eventsRec>\n' + tabs + '\t<speciation speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></speciation>\n' + tabs + '</eventsRec>\n'
-            #print(leadingTabs)
-            genetree.insert(num+1, newLine)
+            #If the gene already has an <eventsRec> tag, don't add another one
+            if eventsRec(subString,genetree) :
+                newLine = tabs + '\t<speciation speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></speciation>\n'
+                genetree.insert(num+3, newLine)
+            else :
+                genetree.insert(num+1, tabs + '<eventsRec>\n')
+                genetree.insert(num+2, tabs + '\t<speciation speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></speciation>\n')
+                genetree.insert(num+3, tabs + '</eventsRec>\n')
         
     return genetree
 
@@ -114,9 +179,14 @@ def leafXML(line,genetree) :
         if line.find(subString) != -1:
             leadingTabs = len(line) - len(line.lstrip())
             tabs = '\t'*(int(leadingTabs/2)+1)
-            newLine = tabs + '<eventsRec>\n' + tabs + '\t<leaf speciesLocation=' + '\"' + leafName.rstrip() + '\"' + '></leaf>\n' + tabs + '</eventsRec>\n'
-            #print(leadingTabs)
-            genetree.insert(num+1, newLine)
+            #If the gene already has an <eventsRec> tag, don't add another one
+            if eventsRec(subString,genetree) :
+                newLine = tabs + '\t<leaf speciesLocation=' + '\"' + leafName.rstrip() + '\"' + '></leaf>\n'
+                genetree.insert(num+3, newLine)
+            else :
+                genetree.insert(num+1, tabs + '<eventsRec>\n')
+                genetree.insert(num+2, tabs + '\t<leaf speciesLocation=' + '\"' + leafName.rstrip() + '\"' + '></leaf>\n')
+                genetree.insert(num+3, tabs + '</eventsRec>\n')
         
     return genetree
 
@@ -131,7 +201,8 @@ def buildTree(tree, qualifier, rooted) :
     lines.pop(0) #remove first line
     lines.pop() #remove last line
     specFile.close()
-    
+    os.remove("temp")
+    os.remove("temp2")
 
     #Inserting the recPhylo information to the gene/species tree
     if rooted :     
@@ -146,8 +217,7 @@ def buildTree(tree, qualifier, rooted) :
     elif(qualifier == "g") :
         lines.insert(0,"\t<recGeneTree>\n")
         lines.append("\t</recGeneTree>\n</recPhylo>\n")
-    os.remove("temp")
-    os.remove("temp2")
+    
     return lines
 
 #This takes the locations of each event and creates the appropriate XML
@@ -156,18 +226,24 @@ def buildXML(recLines,geneTree) :
     for line in recLines :
         if events[0] in line :
             #Transfer XML
-            geneTree = transferXML(line,geneTree)
+            print("Transfer")
+            geneTree = transferXML(line,geneTree,recLines)
 
         elif events[1] in line :
             #Duplication XML
+            #print("Duplication")
             geneTree = duplicationXML(line,geneTree)
 
         elif events[2] in line :
             #Speciation XML
+            #print("Speciation")
             geneTree = speciationXML(line,geneTree)
 
         else :
+            #print("Leaf")
             geneTree = leafXML(line,geneTree)
+
+    return geneTree
 
 
 #Argument parser, checks input from command line, arguments are optional
@@ -176,9 +252,6 @@ parser.add_argument('-i', '--input', help="Input file path", default = sys.argv[
 parser.add_argument('-o', '--output', help="Output file name", default = 'output.xml')
 args = parser.parse_args()
 #outputFile = args.outputFile
-
-#Hard coded input file for when biopython doesn't want to work
-#inputFile = r'C:\Win\CorePrograms\test'
 
 
 #Start of program, takes input and runs!
@@ -190,10 +263,17 @@ with open(args.input,'r') as file :
     rooted = findRooted(lines)
     spTree = buildTree(findSpTree(lines), "s", rooted)
     geneTree = buildTree(findGeneTree(lines), "g", rooted)
-    buildXML(recLines,geneTree)
+    geneTree = buildXML(recLines,geneTree)
 
+    #Combining into one list
+    spTree.extend(geneTree)
 
-    #If args.output doesn't work, change to any string file for the output
+    #Fixing the format
+    for line in spTree :
+        line.rstrip()
+        line.strip()
+
+    #Writing the output file based on the arguments/default
     with open(args.output, "w+") as outFile:
         outFile.writelines(spTree)
-        outFile.writelines(geneTree)
+        
