@@ -8,9 +8,10 @@
 ##  into the recPhyloXML format.
 ##
 ##  requires : biopython (https://biopython.org/)
+##             ete toolkit (http://etetoolkit.org/)
 ##
 ##
-##  developped for python3.7
+##  developped for python3.6+
 ##
 #########################################
 
@@ -20,6 +21,7 @@ from collections import defaultdict
 from Bio import Phylo
 import os
 import newick
+from ete3 import Tree
 
 #Finds where Reconcliation starts and ends
 #This is the section underneath the "Reconcilation:" and
@@ -59,11 +61,23 @@ def eventsRec(name,genetree) :
             if(genetree[num+1].strip() != "</clade>" and genetree[num +1].strip() != "<clade>") :
                 return True
     return False
-    
+
+def findMap(reclines,gene) :
+    for line in reclines :
+        if line.find(gene + " = ") != -1 :
+            if line.find("Transfer") :
+                return line[line.find('Mapping') + 12:line.find(', Recipient')]
+            else :
+                return line[line.find('Mapping') + 12:len(line)]
+
+def findLine(reclines,gene) :
+    for line in reclines :
+        if line.find(gene + " = ") != -1 :
+            return line
 
 #All XML generators found here
 #Extracts data from input lines and generates the appropriate XML
-def transferXML(line,genetree,reclines) :
+def transferXML(line,genetree,reclines,stree,gtree) :
     
     #Data Extraction
     subNode = line[0:line.find(' =')]
@@ -83,23 +97,32 @@ def transferXML(line,genetree,reclines) :
                 genetree.insert(num+1, tabs + '<eventsRec>\n')
                 genetree.insert(num+2, tabs + '\t<branchingOut speciesLocation=' + '\"' + mapper.rstrip() + '\"' + '></branchingOut>\n')
                 genetree.insert(num+3, tabs + '</eventsRec>\n')
-    #Transfer events require a second part, the transferback, done here
-    
-    #find children of current gene node
-    #find if genes are
-    #leaves -> string matching
-    #direct mapping -> pick that one
-    #no mapping -> look for all children
 
-    for line in reclines:
-        print(lca[1])
-        print(recip)
-        if (lca[0] + "= " or lca[1] + "= " in line) and "Mapping --> " + recip in line:
-            genetree = transferBackXML(line,genetree)
-        elif lca[0].find(recip) != -1 :
-            genetree = transferBackXML(line,genetree)
-        elif lca[1].find(recip) != -1 :
-            genetree = transferBackXML(line,genetree)
+    for node in gtree.traverse() :
+        #we find the node we're having the branching out event after
+        if node.name == subNode :
+            #go through all of this childrens for the transferback
+            for child in node.get_children() :
+                #if a child is a leaf do string matching
+                if child.is_leaf() :
+                    for line in reclines :
+                        if line.find(recip.rstrip()) == 0 :
+                            genetree = transferBackLeafXML(line,genetree,recip)
+                    break
+                else :
+                    #if you find direct mapping do that
+                    if recip.rstrip() == findMap(reclines,child.name) :
+                        line = findLine(reclines,child.name)
+                        genetree = transferBackXML(line,genetree)
+                    #no direct map/leaf
+                    else :
+                        #look for recipient node in species tree
+                        for node2 in stree.traverse() :
+                            if node2.name == recip.rstrip() :
+                                #look to see if any descendants map to gene descendants
+                                for child2 in node2.get_children() :
+                                    if findMap(reclines,child.name) == child2.name :
+                                        genetree = transferBackXML(findLine(reclines,child.name),genetree)
 
         #find other ways to get recipient species
     return genetree
@@ -124,6 +147,25 @@ def transferBackXML(line,genetree) :
             else :
                 genetree.insert(num+1, tabs + '<eventsRec>\n')
                 genetree.insert(num+2, tabs + '\t<transferBack destinationSpecies=' + '\"' + mapper.rstrip() + '\"' + '></transferBack>\n')
+                genetree.insert(num+3, tabs + '</eventsRec>\n')
+        
+    return genetree
+
+def transferBackLeafXML(line,genetree,recip) :
+
+    leafName = line[0:line.find(': ')]
+    subString = "<name>" + leafName + "</name>"
+    for num, line in enumerate(genetree):
+        if line.find(subString) != -1:
+            leadingTabs = len(line) - len(line.lstrip())
+            tabs = '\t'*(int(leadingTabs/2)+1)
+            #If the gene already has an <eventsRec> tag, don't add another one
+            if eventsRec(leafName,genetree) :
+                newLine = tabs + '\t<transferBack destinationSpecies=' + '\"' + recip.rstrip() + '\"' + '></transferBack>\n'
+                genetree.insert(num+2, newLine)
+            else :
+                genetree.insert(num+1, tabs + '<eventsRec>\n')
+                genetree.insert(num+2, tabs + '\t<transferBack destinationSpecies=' + '\"' + recip.rstrip() + '\"' + '></transferBack>\n')
                 genetree.insert(num+3, tabs + '</eventsRec>\n')
         
     return genetree
@@ -195,7 +237,6 @@ def buildTree(tree, qualifier, rooted) :
     with open("temp","w+") as temper :
         temper.writelines(tree)
     Phylo.convert('temp', 'newick', 'temp2', 'phyloxml')
-    
     specFile = open("temp2", "r")
     lines = specFile.readlines()
     lines.pop(0) #remove first line
@@ -221,13 +262,13 @@ def buildTree(tree, qualifier, rooted) :
     return lines
 
 #This takes the locations of each event and creates the appropriate XML
-def buildXML(recLines,geneTree) :
+def buildXML(recLines,geneTree,stree,gtree) :
     events = ("Transfer", "Duplication", "Speciation")
     for line in recLines :
         if events[0] in line :
             #Transfer XML
-            print("Transfer")
-            geneTree = transferXML(line,geneTree,recLines)
+            #print("Transfer")
+            geneTree = transferXML(line,geneTree,recLines,stree,gtree)
 
         elif events[1] in line :
             #Duplication XML
@@ -261,9 +302,13 @@ with open(args.input,'r') as file :
     s, e = findRec(lines)[0], findRec(lines)[1]
     recLines = lines[s:e]
     rooted = findRooted(lines)
-    spTree = buildTree(findSpTree(lines), "s", rooted)
-    geneTree = buildTree(findGeneTree(lines), "g", rooted)
-    geneTree = buildXML(recLines,geneTree)
+    SPTree = findSpTree(lines)
+    GNTree = findGeneTree(lines)
+    stree = Tree(SPTree, format=8)
+    gtree = Tree(GNTree, format=8)
+    spTree = buildTree(SPTree, "s", rooted)
+    geneTree = buildTree(GNTree, "g", rooted)
+    geneTree = buildXML(recLines,geneTree,stree,gtree)
 
     #Combining into one list
     spTree.extend(geneTree)
@@ -276,4 +321,3 @@ with open(args.input,'r') as file :
     #Writing the output file based on the arguments/default
     with open(args.output, "w+") as outFile:
         outFile.writelines(spTree)
-        
